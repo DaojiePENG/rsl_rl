@@ -36,6 +36,12 @@ from torch.distributions import Normal
 from torch.nn.modules import rnn
 
 class ActorCritic(nn.Module):
+    '''
+    这个类分装了PyTorch神经网络相关的操作。包括：
+    定义神经网络形状；
+    指定激活函数类型；
+
+    '''
     is_recurrent = False
     def __init__(self,  num_actor_obs,
                         num_critic_obs,
@@ -60,14 +66,14 @@ class ActorCritic(nn.Module):
         actor_layers.append(activation)
         for l in range(len(actor_hidden_dims)):
             if l == len(actor_hidden_dims) - 1:
-                actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions))
+                actor_layers.append(nn.Linear(actor_hidden_dims[l], num_actions)) # 最后一级网络将输出形状映射到跟动作所需驱动节点维度相同；
             else:
-                actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1]))
-                actor_layers.append(activation)
+                actor_layers.append(nn.Linear(actor_hidden_dims[l], actor_hidden_dims[l + 1])) 
+                actor_layers.append(activation)# 在最后一级之前操作为将上一层网络的输出形状映射到下一网络的输出形状，并添加一个激活层；
         self.actor = nn.Sequential(*actor_layers)
 
         # Value function
-        critic_layers = []
+        critic_layers = [] # 不太懂这个 critic_layer 惩罚层是什么意思，是在模仿学习的时候会用到的吗?
         critic_layers.append(nn.Linear(mlp_input_dim_c, critic_hidden_dims[0]))
         critic_layers.append(activation)
         for l in range(len(critic_hidden_dims)):
@@ -117,8 +123,14 @@ class ActorCritic(nn.Module):
         return self.distribution.entropy().sum(dim=-1)
 
     def update_distribution(self, observations):
-        mean = self.actor(observations)
-        self.distribution = Normal(mean, mean*0. + self.std)
+        '''
+        这个函数是调用神经网络更新下一步动作的函数。
+        它调用神经网络计算除了平均的动作，然后将动作结果添加正态分布的噪声。
+        这个结果会在 PPO 中使用到。
+        这就是我一直想找到的在神经网络优化过程所调用神经网络计算动作输出的地方。
+        '''
+        mean = self.actor(observations) # 这里调用了神经网络计算除了平均的动作
+        self.distribution = Normal(mean, mean*0. + self.std) # 这里用神经网络输出的动作结果添加了正态分布的噪声。
 
     def act(self, observations, **kwargs):
         self.update_distribution(observations)
@@ -127,9 +139,9 @@ class ActorCritic(nn.Module):
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)
 
-    def act_inference(self, observations):
-        actions_mean = self.actor(observations)
-        return actions_mean
+    def act_inference(self, observations): # 输入 observations 是观测结果；输出是经过神经网络处理后的动作。
+        actions_mean = self.actor(observations) # 这个就是将神经网络的调用封装了一层接口，没做什么别的操作。
+        return actions_mean # 以后在这个库里，调用 act_inference 就相当于调用了模型计算最终输出结果。
 
     def evaluate(self, critic_observations, **kwargs):
         value = self.critic(critic_observations)

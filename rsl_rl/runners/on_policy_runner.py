@@ -62,9 +62,10 @@ class OnPolicyRunner:
         actor_critic: ActorCritic = actor_critic_class( self.env.num_obs,
                                                         num_critic_obs,
                                                         self.env.num_actions,
+                                                        # policy_cfg 中的参数定义了神经网络的形状、激发函数等；
                                                         **self.policy_cfg).to(self.device)
         alg_class = eval(self.cfg["algorithm_class_name"]) # PPO
-        self.alg: PPO = alg_class(actor_critic, device=self.device, **self.alg_cfg)
+        self.alg: PPO = alg_class(actor_critic, device=self.device, **self.alg_cfg) # 这里就相当于使用了 PPO 类。只是用了一下将字符串映射到类名的技巧。
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
         self.save_interval = self.cfg["save_interval"]
 

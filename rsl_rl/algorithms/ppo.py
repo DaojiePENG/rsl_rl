@@ -94,8 +94,8 @@ class PPO:
         self.transition.actions = self.actor_critic.act(obs).detach()
         self.transition.values = self.actor_critic.evaluate(critic_obs).detach()
         self.transition.actions_log_prob = self.actor_critic.get_actions_log_prob(self.transition.actions).detach()
-        self.transition.action_mean = self.actor_critic.action_mean.detach()
-        self.transition.action_sigma = self.actor_critic.action_std.detach()
+        self.transition.action_mean = self.actor_critic.action_mean.detach() # 从神经网络输出动作添加正态噪声后的 distribution 中计算得到的。
+        self.transition.action_sigma = self.actor_critic.action_std.detach() # 从神经网络输出动作添加正态噪声后的 distribution 中计算得到的。
         # need to record obs and critic_obs before env.step()
         self.transition.observations = obs
         self.transition.critic_observations = critic_obs

@@ -87,7 +87,7 @@ class OnPolicyRunner:
             self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
         if init_at_random_ep_len:
             self.env.episode_length_buf = torch.randint_like(self.env.episode_length_buf, high=int(self.env.max_episode_length))
-        obs = self.env.get_observations()
+        obs = self.env.get_observations() # 这个函数在 base_task.py 中定义，它的返回值 obs_buf 将在 LeggedRobot 类中的 compute_observations 函数中进行定义。。
         privileged_obs = self.env.get_privileged_observations()
         critic_obs = privileged_obs if privileged_obs is not None else obs
         obs, critic_obs = obs.to(self.device), critic_obs.to(self.device)
@@ -105,7 +105,7 @@ class OnPolicyRunner:
             # Rollout
             with torch.inference_mode():
                 for i in range(self.num_steps_per_env):
-                    actions = self.alg.act(obs, critic_obs)
+                    actions = self.alg.act(obs, critic_obs) # 这个 alg.act() 是 PPO 中定义的 act 再次封装了 ActorCritic 中的 act 
                     obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
                     critic_obs = privileged_obs if privileged_obs is not None else obs
                     obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
@@ -220,6 +220,9 @@ class OnPolicyRunner:
             }, path)
 
     def load(self, path, load_optimizer=True):
+        '''
+        这个函数会载入训练好的 PyTorch 模型。实际使用见于 task_registry.py 最后的 resume 部分。
+        '''
         loaded_dict = torch.load(path)
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'])
         if load_optimizer:
@@ -228,6 +231,10 @@ class OnPolicyRunner:
         return loaded_dict['infos']
 
     def get_inference_policy(self, device=None):
+        '''
+        对于直接重新载入的策略，可以直接调用这个函数来方问策略模型。
+        只需要传递观测信息作为输入，就可以得到控制动作的返回值，如 play.py 中的使用案例。
+        '''
         self.alg.actor_critic.eval() # switch to evaluation mode (dropout for example)
         if device is not None:
             self.alg.actor_critic.to(device)

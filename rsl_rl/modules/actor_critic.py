@@ -120,6 +120,9 @@ class ActorCritic(nn.Module):
     
     @property
     def entropy(self):
+        '''
+        获取动作分布的熵，
+        '''
         return self.distribution.entropy().sum(dim=-1)
 
     def update_distribution(self, observations):
@@ -128,11 +131,19 @@ class ActorCritic(nn.Module):
         它调用神经网络计算除了平均的动作，然后将动作结果添加正态分布的噪声。
         这个结果会在 PPO 中使用到。
         这就是我一直想找到的在神经网络优化过程所调用神经网络计算动作输出的地方。
+
+        注：这里只是生成了一个动作的正态分布函数定义，具体作用到节点上的值需要经过下面的 act 函数采样得到；
         '''
         mean = self.actor(observations) # 这里调用了神经网络计算除了平均的动作
         self.distribution = Normal(mean, mean*0. + self.std) # 这里用神经网络输出的动作结果添加了正态分布的噪声。
 
     def act(self, observations, **kwargs):
+        '''
+        每当 act 的时候就用 actor 神经网络来更新一下 distribution 即有正态分布噪声的生成动作。
+
+        简单来说就是采样正态分布的某个值作为动作命令。
+        也就是说添加噪声只需要控制正态分布的 std 变量就可以了。
+        '''
         self.update_distribution(observations)
         return self.distribution.sample()
     

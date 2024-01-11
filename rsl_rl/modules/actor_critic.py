@@ -11,7 +11,7 @@ from torch.distributions import Normal
 
 class ActorCritic(nn.Module):
     '''
-    这个类分装了PyTorch神经网络相关的操作。包括：
+    这个类封装了PyTorch神经网络相关的操作。包括：
     定义神经网络形状；
     指定激活函数类型；
 
@@ -108,7 +108,7 @@ class ActorCritic(nn.Module):
     def update_distribution(self, observations):
         '''
         这个函数是调用神经网络更新下一步动作的函数。
-        它调用神经网络计算除了平均的动作，然后将动作结果添加正态分布的噪声。
+        它调用神经网络计算出了平均的动作，然后将动作结果添加正态分布的噪声。
         这个结果会在 PPO 中使用到。
         这就是我一直想找到的在神经网络优化过程所调用神经网络计算动作输出的地方。
 

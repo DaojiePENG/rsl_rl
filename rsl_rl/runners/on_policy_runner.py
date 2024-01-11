@@ -28,7 +28,7 @@ class OnPolicyRunner:
         self.env = env
         obs, extras = self.env.get_observations()
         num_obs = obs.shape[1]
-        if "critic" in extras["observations"]:
+        if "critic" in extras["observations"]: # 并没有发现在文件中哪里进行了 extras["observations"] 的信息赋值；不知道这个机制要怎么用？？？
             num_critic_obs = extras["observations"]["critic"].shape[1]
         else:
             num_critic_obs = num_obs
@@ -65,6 +65,7 @@ class OnPolicyRunner:
         self.git_status_repos = [rsl_rl.__file__]
 
     def learn(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):
+        '''本类的核心方法，运行仿真、进行信息搜集、用RL算法更新策略、打印log信息、保存模型等等'''
         # initialize writer
         if self.log_dir is not None and self.writer is None:
             # Launch either Tensorboard or Neptune & Tensorboard summary writer(s), default: Tensorboard.
@@ -91,7 +92,7 @@ class OnPolicyRunner:
                 self.env.episode_length_buf, high=int(self.env.max_episode_length)
             )
         obs, extras = self.env.get_observations() # 这个函数在 base_task.py 中定义，它的返回值 obs_buf 将在 LeggedRobot 类中的 compute_observations 函数中进行定义；
-        critic_obs = extras["observations"].get("critic", obs)
+        critic_obs = extras["observations"].get("critic", obs) # 在字典中搜索关键字，返回相应数据；如果搜索不到，则返回默认值 obs；
         obs, critic_obs = obs.to(self.device), critic_obs.to(self.device)
         self.train_mode()  # switch to train mode (for dropout for example)
 
@@ -102,20 +103,28 @@ class OnPolicyRunner:
         cur_episode_length = torch.zeros(self.env.num_envs, dtype=torch.float, device=self.device)
 
         start_iter = self.current_learning_iteration
-        tot_iter = start_iter + num_learning_iterations
+        tot_iter = start_iter + num_learning_iterations # 就是这个决定了到底有多少迭代，训练时它也会显示在终端中；
         for it in range(start_iter, tot_iter):
             '''
-            主优化循环；
-            
+            主优化循环，主要干这几件事：
+                01. collection：用N-step TD的方式运行仿真，计算观测值、奖励、复位环境列表、log信息；
+                    1.1 采用RL算法计算动作指令；
+                    1.2 将动作指令输入环境中进行step仿真，并计算得到观测值、奖励、复位环境列表、log信息；
+                    1.3 执行RL算法后处理；
+                    1.4 保存中间信息用于计算迭代平均奖励；
+                02. Learning：用RL算法更新模型参数；
+                03. logging：每轮迭代完成后在终端打印信息；
+                04. saving：按一定轮数间隔保存策略模型；
             '''
             start = time.time()
             # Rollout
             with torch.inference_mode():
-                for i in range(self.num_steps_per_env):
+                for i in range(self.num_steps_per_env): # 每次迭代往前走的仿真步数；N-Step TD；
                     actions = self.alg.act(obs, critic_obs) # 这个 alg.act() 是 PPO 中定义的 act 再次封装了 ActorCritic 中的 act ；
-                    obs, rewards, dones, infos = self.env.step(actions)
+                    obs, rewards, dones, infos = self.env.step(actions) # 整个环境在仿真空间中前进一步；它会返回五类信息：观测信息、特权观测信息、奖励计算结果、需要重置的环境编号、需要展示到终端的信息；
                     obs = self.obs_normalizer(obs)
                     if "critic" in infos["observations"]:
+                        '''这里的critic是用来干什么的？'''
                         critic_obs = self.critic_obs_normalizer(infos["observations"]["critic"])
                     else:
                         critic_obs = obs
@@ -128,6 +137,7 @@ class OnPolicyRunner:
                     self.alg.process_env_step(rewards, dones, infos)
 
                     if self.log_dir is not None:
+                        '''保存中间信息用于计算迭代平均奖励'''
                         # Book keeping
                         # note: we changed logging to use "log" instead of "episode" to avoid confusion with
                         # different types of logging data (rewards, curriculum, etc.)
@@ -144,22 +154,22 @@ class OnPolicyRunner:
                         cur_episode_length[new_ids] = 0
 
                 stop = time.time()
-                collection_time = stop - start
+                collection_time = stop - start # collection_time 用Local变量进行隐式使用了。
 
                 # Learning step
                 start = stop
                 self.alg.compute_returns(critic_obs)
 
-            mean_value_loss, mean_surrogate_loss = self.alg.update() # 用 PPO 算法进行跟新；
+            mean_value_loss, mean_surrogate_loss = self.alg.update() # 用 PPO 算法进行更新；至此完成一轮强化学习迭代；
             stop = time.time()
             learn_time = stop - start
-            self.current_learning_iteration = it
+            self.current_learning_iteration = it # self.current_learning_iteration 用这个变量的意义在于如果从导入的模型开始迭代的话就可以接着原来的迭代轮数进行显示了；
             if self.log_dir is not None:
-                self.log(locals())
+                self.log(locals()) # 在一次迭代完成后log相关信息；locals()函数会以字典类型返回当前位置的全部局部变量;
             if it % self.save_interval == 0:
-                '''一定间隔下自动保存策略'''
+                '''一定间隔下自动保存策略模型'''
                 self.save(os.path.join(self.log_dir, f"model_{it}.pt"))
-            ep_infos.clear()
+            ep_infos.clear() # 在一次迭代完成后，前面已经log完了信息，在这里可以清除掉等待下一轮接收了；
             if it == start_iter:
                 # obtain all the diff files
                 git_file_paths = store_code_state(self.log_dir, self.git_status_repos)
@@ -256,6 +266,16 @@ class OnPolicyRunner:
         print(log_string)
 
     def save(self, path, infos=None):
+        '''将重要信息打包成字典 saved_dict 并保存，有条件地将模型也保存到外部log服务
+        包括：
+            模型状态-model_state_dict；
+            优化器状态-optimizer_state_dict；
+            迭代轮数-iter；
+            其他信息-infos；
+            ---如果涉及到模型的观测值归一化，则也包括下面信息---
+            观测值归一化状态-obs_norm_state_dict；
+            评论观测值归一化状态-critic_obs_norm_state_dict；
+        '''
         saved_dict = {
             "model_state_dict": self.alg.actor_critic.state_dict(),
             "optimizer_state_dict": self.alg.optimizer.state_dict(),

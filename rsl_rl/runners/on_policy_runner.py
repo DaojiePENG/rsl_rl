@@ -34,10 +34,10 @@ class OnPolicyRunner:
             num_critic_obs = num_obs
         actor_critic_class = eval(self.policy_cfg.pop("class_name"))  # ActorCritic
         actor_critic: ActorCritic | ActorCriticRecurrent = actor_critic_class(
-            num_obs, num_critic_obs, self.env.num_actions, **self.policy_cfg
+            num_obs, num_critic_obs, self.env.num_actions, **self.policy_cfg # policy_cfg 中的参数定义了神经网络的形状、激发函数等；
         ).to(self.device)
         alg_class = eval(self.alg_cfg.pop("class_name"))  # PPO
-        self.alg: PPO = alg_class(actor_critic, device=self.device, **self.alg_cfg)
+        self.alg: PPO = alg_class(actor_critic, device=self.device, **self.alg_cfg) # 这里就相当于使用了 PPO 类。只是用了一下将字符串映射到类名的技巧；
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
         self.save_interval = self.cfg["save_interval"]
         self.empirical_normalization = self.cfg["empirical_normalization"]
@@ -90,7 +90,7 @@ class OnPolicyRunner:
             self.env.episode_length_buf = torch.randint_like(
                 self.env.episode_length_buf, high=int(self.env.max_episode_length)
             )
-        obs, extras = self.env.get_observations()
+        obs, extras = self.env.get_observations() # 这个函数在 base_task.py 中定义，它的返回值 obs_buf 将在 LeggedRobot 类中的 compute_observations 函数中进行定义；
         critic_obs = extras["observations"].get("critic", obs)
         obs, critic_obs = obs.to(self.device), critic_obs.to(self.device)
         self.train_mode()  # switch to train mode (for dropout for example)
@@ -104,11 +104,15 @@ class OnPolicyRunner:
         start_iter = self.current_learning_iteration
         tot_iter = start_iter + num_learning_iterations
         for it in range(start_iter, tot_iter):
+            '''
+            主优化循环；
+            
+            '''
             start = time.time()
             # Rollout
             with torch.inference_mode():
                 for i in range(self.num_steps_per_env):
-                    actions = self.alg.act(obs, critic_obs)
+                    actions = self.alg.act(obs, critic_obs) # 这个 alg.act() 是 PPO 中定义的 act 再次封装了 ActorCritic 中的 act ；
                     obs, rewards, dones, infos = self.env.step(actions)
                     obs = self.obs_normalizer(obs)
                     if "critic" in infos["observations"]:
@@ -146,13 +150,14 @@ class OnPolicyRunner:
                 start = stop
                 self.alg.compute_returns(critic_obs)
 
-            mean_value_loss, mean_surrogate_loss = self.alg.update()
+            mean_value_loss, mean_surrogate_loss = self.alg.update() # 用 PPO 算法进行跟新；
             stop = time.time()
             learn_time = stop - start
             self.current_learning_iteration = it
             if self.log_dir is not None:
                 self.log(locals())
             if it % self.save_interval == 0:
+                '''一定间隔下自动保存策略'''
                 self.save(os.path.join(self.log_dir, f"model_{it}.pt"))
             ep_infos.clear()
             if it == start_iter:
@@ -267,6 +272,9 @@ class OnPolicyRunner:
             self.writer.save_model(path, self.current_learning_iteration)
 
     def load(self, path, load_optimizer=True):
+        '''
+        这个函数会载入训练好的 PyTorch 模型。实际使用见于 task_registry.py 最后的 resume 部分。
+        '''
         loaded_dict = torch.load(path)
         self.alg.actor_critic.load_state_dict(loaded_dict["model_state_dict"])
         if self.empirical_normalization:
@@ -278,6 +286,10 @@ class OnPolicyRunner:
         return loaded_dict["infos"]
 
     def get_inference_policy(self, device=None):
+        '''
+        对于直接重新载入的策略，可以直接调用这个函数来方问策略模型。
+        只需要传递观测信息作为输入，就可以得到控制动作的返回值，如 play.py 中的使用案例。
+        '''
         self.eval_mode()  # switch to evaluation mode (dropout for example)
         if device is not None:
             self.alg.actor_critic.to(device)

@@ -101,6 +101,10 @@ class OnPolicyRunner:
 
         tot_iter = self.current_learning_iteration + num_learning_iterations
         for it in range(self.current_learning_iteration, tot_iter):
+            '''
+            主优化循环；
+            
+            '''
             start = time.time()
             # Rollout
             with torch.inference_mode():
@@ -130,12 +134,13 @@ class OnPolicyRunner:
                 start = stop
                 self.alg.compute_returns(critic_obs)
             
-            mean_value_loss, mean_surrogate_loss = self.alg.update()
+            mean_value_loss, mean_surrogate_loss = self.alg.update() # 用 PPO 算法进行跟新；
             stop = time.time()
             learn_time = stop - start
             if self.log_dir is not None:
                 self.log(locals())
             if it % self.save_interval == 0:
+                '''一定间隔下自动保存策略'''
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)))
             ep_infos.clear()
         

@@ -11,6 +11,14 @@ from rsl_rl.utils import unpad_trajectories
 
 
 class ActorCriticRecurrent(ActorCritic):
+    '''
+    这个类封装了Pytorch神经网络的相关操作。
+    包括：
+        定义神经网络形状；
+        指定激活函数类型；
+        指定RNN的类型；
+    它在继承ActorCritic类的基础上实现了向循环神经网络（RNN）的拓展。
+    '''
     is_recurrent = True
 
     def __init__(
@@ -44,7 +52,7 @@ class ActorCriticRecurrent(ActorCritic):
 
         activation = get_activation(activation)
 
-        self.memory_a = Memory(num_actor_obs, type=rnn_type, num_layers=rnn_num_layers, hidden_size=rnn_hidden_size)
+        self.memory_a = Memory(num_actor_obs, type=rnn_type, num_layers=rnn_num_layers, hidden_size=rnn_hidden_size) # 将RNN神经网络实例化；
         self.memory_c = Memory(num_critic_obs, type=rnn_type, num_layers=rnn_num_layers, hidden_size=rnn_hidden_size)
 
         print(f"Actor RNN: {self.memory_a}")
@@ -55,7 +63,7 @@ class ActorCriticRecurrent(ActorCritic):
         self.memory_c.reset(dones)
 
     def act(self, observations, masks=None, hidden_states=None):
-        input_a = self.memory_a(observations, masks, hidden_states)
+        input_a = self.memory_a(observations, masks, hidden_states) # 原来观测值直接输入神经蛙网络，现在要经过memory这个RNN神经网络编码后再输入原来的网络；
         return super().act(input_a.squeeze(0))
 
     def act_inference(self, observations):
@@ -85,7 +93,7 @@ class Memory(torch.nn.Module):
             if hidden_states is None:
                 raise ValueError("Hidden states not passed to memory module during policy update")
             out, _ = self.rnn(input, hidden_states)
-            out = unpad_trajectories(out, masks)
+            out = unpad_trajectories(out, masks) # 这个mask需要理解一下。为什么这里需要这样操作？？？
         else:
             # inference mode (collection): use hidden states of last step
             out, self.hidden_states = self.rnn(input.unsqueeze(0), self.hidden_states)

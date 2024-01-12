@@ -33,7 +33,7 @@ class OnPolicyRunner:
         else:
             num_critic_obs = num_obs
         actor_critic_class = eval(self.policy_cfg.pop("class_name"))  # ActorCritic
-        actor_critic: ActorCritic | ActorCriticRecurrent = actor_critic_class(
+        actor_critic: ActorCritic | ActorCriticRecurrent = actor_critic_class( # 这种带冒号的写法应该是类似C++那样的强制返回值类型的；
             num_obs, num_critic_obs, self.env.num_actions, **self.policy_cfg # policy_cfg 中的参数定义了神经网络的形状、激发函数等；
         ).to(self.device)
         alg_class = eval(self.alg_cfg.pop("class_name"))  # PPO

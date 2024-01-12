@@ -41,8 +41,8 @@ class PPO:
         self.actor_critic = actor_critic
         self.actor_critic.to(self.device)
         self.storage = None  # initialized later
-        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=learning_rate)
-        self.transition = RolloutStorage.Transition()
+        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=learning_rate) # 采用 Adma 类型的优化器； 这个要看看相关的内容，关注它是如何进行神经网络参数优化的；
+        self.transition = RolloutStorage.Transition() # 用于接收环境和检测环境的观测、动作等信息；
 
         # PPO parameters
         self.clip_param = clip_param
@@ -121,8 +121,8 @@ class PPO:
             hid_states_batch,
             masks_batch,
         ) in generator:
-            self.actor_critic.act(obs_batch, masks=masks_batch, hidden_states=hid_states_batch[0])
-            actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
+            self.actor_critic.act(obs_batch, masks=masks_batch, hidden_states=hid_states_batch[0]) # 用神经网络对每一个生成的观测值都进行计算得到控制指令，但为什么没接收返回值？？？；
+            actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch) # 获得动作的分布信息；
             value_batch = self.actor_critic.evaluate(
                 critic_obs_batch, masks=masks_batch, hidden_states=hid_states_batch[1]
             )
@@ -156,7 +156,7 @@ class PPO:
             surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
                 ratio, 1.0 - self.clip_param, 1.0 + self.clip_param
             )
-            surrogate_loss = torch.max(surrogate, surrogate_clipped).mean()
+            surrogate_loss = torch.max(surrogate, surrogate_clipped).mean() # 计算代理损失结果；
 
             # Value function loss
             if self.use_clipped_value_loss:
@@ -167,20 +167,21 @@ class PPO:
                 value_losses_clipped = (value_clipped - returns_batch).pow(2)
                 value_loss = torch.max(value_losses, value_losses_clipped).mean()
             else:
-                value_loss = (returns_batch - value_batch).pow(2).mean()
+                value_loss = (returns_batch - value_batch).pow(2).mean() # 计算值损失；
 
+            # 既然优化器是Pytorch标准实现的，也就是这个loss决定了这个算法脚PPO算法？？？
             loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
 
             # Gradient step
             self.optimizer.zero_grad()
-            loss.backward()
+            loss.backward() # 很好奇它是怎么跟优化器联系起来的？？？估计是optimizer会自动检测这个变量，看例子上都是用的这个名字；
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             mean_value_loss += value_loss.item()
             mean_surrogate_loss += surrogate_loss.item()
 
-        num_updates = self.num_learning_epochs * self.num_mini_batches
+        num_updates = self.num_learning_epochs * self.num_mini_batches # 学习的时期数和学习的最小批数的乘积是整个更新的总数；
         mean_value_loss /= num_updates
         mean_surrogate_loss /= num_updates
         self.storage.clear()

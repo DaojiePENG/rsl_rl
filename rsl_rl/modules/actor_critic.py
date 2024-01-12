@@ -41,7 +41,7 @@ class ActorCritic(nn.Module):
         mlp_input_dim_c = num_critic_obs
         # Policy
         actor_layers = []
-        actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0]))
+        actor_layers.append(nn.Linear(mlp_input_dim_a, actor_hidden_dims[0])) # 第一级形状是观测输入的形状，映射到策略网络第一层形状；
         actor_layers.append(activation)
         for layer_index in range(len(actor_hidden_dims)):
             if layer_index == len(actor_hidden_dims) - 1:
@@ -132,11 +132,11 @@ class ActorCritic(nn.Module):
 
     def act_inference(self, observations): # 输入 observations 是观测结果；输出是经过神经网络处理后的动作；
         actions_mean = self.actor(observations) # 这个就是将神经网络的调用封装了一层接口，没做什么别的操作；
-        return actions_mean # 以后在这个库里，调用 act_inference 就相当于调用了模型计算最终输出结果；
+        return actions_mean # 以后在这个库里，调用 act_inference 就相当于调用了模型计算最终输出结果；这个动作指令没有经过噪声化处理，用于 play 仿真和实际控制；
 
     def evaluate(self, critic_observations, **kwargs):
-        value = self.critic(critic_observations)
-        return value
+        value = self.critic(critic_observations) # 这个使用评价模型计算得到的动作指令；主要在RL算法实现中使用，如PPO的实现过程；
+        return value # 这种情况就是说采用一个比较成熟的RL策略来当做正在训练的这个策略的老师，教师-学生训练？？？
 
 
 def get_activation(act_name):

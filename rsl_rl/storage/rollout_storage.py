@@ -10,6 +10,8 @@ from rsl_rl.utils import split_and_pad_trajectories
 
 
 class RolloutStorage:
+    '''滚动存储类，该类主要服务于RL算法，如PPO。
+    '''
     class Transition:
         def __init__(self):
             self.observations = None
@@ -50,7 +52,7 @@ class RolloutStorage:
         self.values = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.returns = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.advantages = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
-        self.mu = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
+        self.mu = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device) # mu和sigma的形状为什么要和actions一样呢？
         self.sigma = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
 
         self.num_transitions_per_env = num_transitions_per_env
@@ -63,6 +65,7 @@ class RolloutStorage:
         self.step = 0
 
     def add_transitions(self, transition: Transition):
+        '''每次transition都保存一步step的数据'''
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
         self.observations[self.step].copy_(transition.observations)
@@ -107,7 +110,7 @@ class RolloutStorage:
             if step == self.num_transitions_per_env - 1:
                 next_values = last_values
             else:
-                next_values = self.values[step + 1]
+                next_values = self.values[step + 1] # self.values来自transition.value的copy；
             next_is_not_terminal = 1.0 - self.dones[step].float()
             delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
             advantage = delta + next_is_not_terminal * gamma * lam * advantage
@@ -118,14 +121,15 @@ class RolloutStorage:
         self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
 
     def get_statistics(self):
+        '''这获取的是什么的统计？？？'''
         done = self.dones
         done[-1] = 1
         flat_dones = done.permute(1, 0, 2).reshape(-1, 1)
         done_indices = torch.cat(
             (flat_dones.new_tensor([-1], dtype=torch.int64), flat_dones.nonzero(as_tuple=False)[:, 0])
         )
-        trajectory_lengths = done_indices[1:] - done_indices[:-1]
-        return trajectory_lengths.float().mean(), self.rewards.mean()
+        trajectory_lengths = done_indices[1:] - done_indices[:-1] # 这应该计算的是前一个transition到当前transition的距离；
+        return trajectory_lengths.float().mean(), self.rewards.mean() # 返回的是平均距离和平均奖励，那为什么要叫做统计呢，就因为取了平均值？；
 
     def mini_batch_generator(self, num_mini_batches, num_epochs=8):
         batch_size = self.num_envs * self.num_transitions_per_env
@@ -164,11 +168,11 @@ class RolloutStorage:
                 yield obs_batch, critic_observations_batch, actions_batch, target_values_batch, advantages_batch, returns_batch, old_actions_log_prob_batch, old_mu_batch, old_sigma_batch, (
                     None,
                     None,
-                ), None
+                ), None # 这是对隐式信息的处理，对于没有critic的非迭代情况，没有隐式信息；
 
     # for RNNs only
     def reccurent_mini_batch_generator(self, num_mini_batches, num_epochs=8):
-        padded_obs_trajectories, trajectory_masks = split_and_pad_trajectories(self.observations, self.dones)
+        padded_obs_trajectories, trajectory_masks = split_and_pad_trajectories(self.observations, self.dones) # 得进一步理解一下这个处理轨迹的函数的实现和作用；
         if self.privileged_observations is not None:
             padded_critic_obs_trajectories, _ = split_and_pad_trajectories(self.privileged_observations, self.dones)
         else:
@@ -223,6 +227,6 @@ class RolloutStorage:
                 yield obs_batch, critic_obs_batch, actions_batch, values_batch, advantages_batch, returns_batch, old_actions_log_prob_batch, old_mu_batch, old_sigma_batch, (
                     hid_a_batch,
                     hid_c_batch,
-                ), masks_batch
+                ), masks_batch # 这是对隐式信息的处理；
 
                 first_traj = last_traj

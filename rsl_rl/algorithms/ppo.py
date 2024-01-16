@@ -81,6 +81,7 @@ class PPO:
         return self.transition.actions
 
     def process_env_step(self, rewards, dones, infos):
+        '''在on_policy_runner中被调用，每进行一步仿真就调用一次'''
         self.transition.rewards = rewards.clone()
         self.transition.dones = dones
         # Bootstrapping on time outs
@@ -90,8 +91,8 @@ class PPO:
             )
 
         # Record the transition
-        self.storage.add_transitions(self.transition)
-        self.transition.clear()
+        self.storage.add_transitions(self.transition) # 每add一次，step会+1，直到调用RolloutStorage.clear()方法进行归零；
+        self.transition.clear() # 对保存的数据进行初始化；
         self.actor_critic.reset(dones)
 
     def compute_returns(self, last_critic_obs):
@@ -160,6 +161,7 @@ class PPO:
 
             # Value function loss
             if self.use_clipped_value_loss:
+                '''处理评价模型的结果：value_batch的偏差损失'''
                 value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
                     -self.clip_param, self.clip_param
                 )
@@ -176,7 +178,7 @@ class PPO:
             self.optimizer.zero_grad()
             loss.backward() # 很好奇它是怎么跟优化器联系起来的？？？估计是optimizer会自动检测这个变量，看例子上都是用的这个名字；
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
-            self.optimizer.step()
+            self.optimizer.step() # 完成一步参数优化，标志着一轮优化的结束；
 
             mean_value_loss += value_loss.item()
             mean_surrogate_loss += surrogate_loss.item()

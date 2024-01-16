@@ -26,6 +26,7 @@ def split_and_pad_trajectories(tensor, dones):
 
     Assumes that the inputy has the following dimension order: [time, number of envs, additional dimensions]
     """
+    '''这个函数仅在RolloutStorage类中被使用了。'''
     dones = dones.clone()
     dones[-1] = 1
     # Permute the buffers to have order (num_envs, num_transitions_per_env, ...), for correct reshaping

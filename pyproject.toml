@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rsl-rl-lib"
+name = "rsl-rl-lm"
 version = "2.2.1"
 keywords = ["reinforcement-learning", "isaac", "leggedrobotics", "rl-pytorch"]
 maintainers = [
@@ -39,10 +39,10 @@ Issues = "https://github.com/leggedrobotics/rsl_rl/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["rsl_rl*"]
+include = ["rsl_rl_lm*"]
 
 [tool.setuptools.package-data]
-"rsl_rl" = ["config/*", "licenses/*"]
+"rsl_rl_lm" = ["config/*", "licenses/*"]
 
 [tool.isort]
 

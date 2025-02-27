@@ -8,8 +8,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from rsl_rl.modules.actor_critic import ActorCritic
-from rsl_rl.utils import resolve_nn_activation, unpad_trajectories
+from rsl_rl_lm.modules.actor_critic import ActorCritic
+from rsl_rl_lm.utils import resolve_nn_activation, unpad_trajectories
 
 
 class ActorCriticRecurrent(ActorCritic):
